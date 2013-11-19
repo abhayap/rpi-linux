@@ -1558,7 +1558,7 @@ static int soc_link_dai_widgets(struct snd_soc_card *card,
 	if (sink && source) {
 		ret = snd_soc_dapm_new_pcm(card, dai_link->params,
 					   dai_link->num_params,
-					   source, sink);
+					   source, sink, dai_link);
 		if (ret != 0) {
 			dev_err(card->dev, "ASoC: Can't link %s to %s: %d\n",
 				sink->name, source->name, ret);
@@ -1571,7 +1571,7 @@ static int soc_link_dai_widgets(struct snd_soc_card *card,
 	if (sink && source) {
 		ret = snd_soc_dapm_new_pcm(card, dai_link->params,
 					   dai_link->num_params,
-					   source, sink);
+					   source, sink, dai_link);
 		if (ret != 0) {
 			dev_err(card->dev, "ASoC: Can't link %s to %s: %d\n",
 				sink->name, source->name, ret);
