@@ -29,6 +29,7 @@ dtb-$(RPI_DT_OVERLAYS) += mz61581-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += piscreen-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pitft28-resistive-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += pps-gpio-overlay.dtb
+dtb-$(RPI_DT_OVERLAYS) += rpi-cirrus-wm5102-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-dac-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-display-overlay.dtb
 dtb-$(RPI_DT_OVERLAYS) += rpi-proto-overlay.dtb
