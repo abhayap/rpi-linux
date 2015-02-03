@@ -50,6 +50,8 @@ Required properties:
 Optional properties:
 
   - wlf,reset : GPIO specifier for the GPIO controlling /RESET
+  - wlf,clk32k-src : set input source for codec 32kHz clock.
+      0 = default, 1 = MCLK1, 2 = MCLK2, 3 = None
 
   - clocks: Should reference the clocks supplied on MCLK1 and MCLK2
   - clock-names: Should contains two strings:
