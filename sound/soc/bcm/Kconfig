@@ -7,3 +7,11 @@ config SND_BCM2835_SOC_I2S
 	  Say Y or M if you want to add support for codecs attached to
 	  the BCM2835 I2S interface. You will also need
 	  to select the audio interfaces to support below.
+
+config SND_BCM2835_SOC_RPI_CODEC_WSP
+	tristate "Support for Cirrus sound pi"
+	depends on SND_BCM2835_SOC_I2S
+	select SND_SOC_WM5102
+	select SND_SOC_WM8804
+	help
+	  Say Y or M if you want to add support for Cirrus sound pi
