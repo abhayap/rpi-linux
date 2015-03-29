@@ -314,6 +314,19 @@ static int snd_rpi_wsp_config_5102_clks(struct snd_soc_codec *wm5102_codec, int 
 	int ret;
 	int clk_freq = (sr % 4000 == 0) ? WM5102_MAX_SYSCLK_1 : WM5102_MAX_SYSCLK_2;
 
+	/*reset FLL1*/
+	snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1,
+		ARIZONA_FLL_SRC_NONE, 0, 0);
+
+	ret = snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1,
+					ARIZONA_CLK_SRC_MCLK1,
+					WM8804_CLKOUT_HZ,
+					clk_freq);
+
+	if (ret != 0) {
+		dev_err(wm5102_codec->dev, "Failed to set FLL1: %d\n", ret);
+		return ret;
+	}
 
 	ret = snd_soc_codec_set_sysclk(wm5102_codec,
 			ARIZONA_CLK_SYSCLK,
