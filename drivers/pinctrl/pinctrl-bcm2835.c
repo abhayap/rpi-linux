@@ -410,15 +410,7 @@ static int bcm2835_gpio_irq_handle_bank(struct bcm2835_pinctrl *pc,
 		gpio = (32 * bank) + offset;
 		type = pc->irq_type[gpio];
 
-		/* ack edge triggered IRQs immediately */
-		if (!(type & IRQ_TYPE_LEVEL_MASK))
-			bcm2835_gpio_set_bit(pc, GPEDS0, gpio);
-
 		generic_handle_irq(irq_linear_revmap(pc->irq_domain, gpio));
-
-		/* ack level triggered IRQ after handling them */
-		if (type & IRQ_TYPE_LEVEL_MASK)
-			bcm2835_gpio_set_bit(pc, GPEDS0, gpio);
 	}
 
 	return (events != 0);
@@ -623,9 +615,22 @@ static int bcm2835_gpio_irq_set_type(struct irq_data *data, unsigned int type)
 	else
 		ret = __bcm2835_gpio_irq_set_type_disabled(pc, gpio, type);
 
+	if (type & IRQ_TYPE_EDGE_BOTH)
+		__irq_set_handler_locked(data->irq, handle_edge_irq);
+	else
+		__irq_set_handler_locked(data->irq, handle_level_irq);
+
 	spin_unlock_irqrestore(&pc->irq_lock[bank], flags);
 
 	return ret;
+}
+
+static void bcm2835_gpio_irq_ack(struct irq_data *data)
+{
+	struct bcm2835_pinctrl *pc = irq_data_get_irq_chip_data(data);
+	unsigned gpio = irqd_to_hwirq(data);
+
+	bcm2835_gpio_set_bit(pc, GPEDS0, gpio);
 }
 
 static struct irq_chip bcm2835_gpio_irq_chip = {
@@ -633,6 +638,9 @@ static struct irq_chip bcm2835_gpio_irq_chip = {
 	.irq_enable = bcm2835_gpio_irq_enable,
 	.irq_disable = bcm2835_gpio_irq_disable,
 	.irq_set_type = bcm2835_gpio_irq_set_type,
+	.irq_ack = bcm2835_gpio_irq_ack,
+	.irq_mask = bcm2835_gpio_irq_disable,
+	.irq_unmask = bcm2835_gpio_irq_enable,
 };
 
 static int bcm2835_pctl_get_groups_count(struct pinctrl_dev *pctldev)
@@ -1009,7 +1017,7 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 		int irq = irq_create_mapping(pc->irq_domain, i);
 		irq_set_lockdep_class(irq, &gpio_lock_class);
 		irq_set_chip_and_handler(irq, &bcm2835_gpio_irq_chip,
-				handle_simple_irq);
+				handle_level_irq);
 		irq_set_chip_data(irq, pc);
 		set_irq_flags(irq, IRQF_VALID);
 	}
