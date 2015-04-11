@@ -350,13 +350,15 @@ int arizona_irq_init(struct arizona *arizona)
 		}
 	}
 
-	ret = request_threaded_irq(arizona->irq, NULL, arizona_irq_thread,
-				   flags, "arizona", arizona);
+	if (arizona->irq) {
+		ret = request_threaded_irq(arizona->irq, NULL, arizona_irq_thread,
+					   flags, "arizona", arizona);
 
-	if (ret != 0) {
-		dev_err(arizona->dev, "Failed to request primary IRQ %d: %d\n",
-			arizona->irq, ret);
-		goto err_main_irq;
+		if (ret != 0) {
+			dev_err(arizona->dev, "Failed to request primary IRQ %d: %d\n",
+				arizona->irq, ret);
+			goto err_main_irq;
+		}
 	}
 
 	return 0;
@@ -388,7 +390,8 @@ int arizona_irq_exit(struct arizona *arizona)
 			    arizona->irq_chip);
 	regmap_del_irq_chip(irq_create_mapping(arizona->virq, 0),
 			    arizona->aod_irq_chip);
-	free_irq(arizona->irq, arizona);
+	if (arizona->irq)
+		free_irq(arizona->irq, arizona);
 
 	return 0;
 }
