@@ -72,6 +72,10 @@
 			#size-cells = <0>;
 			status = "okay";
 
+			spidev@0{
+				status = "disabled";
+			};
+
 			spidev@1{
 				status = "disabled";
 			};
