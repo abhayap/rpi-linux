@@ -62,6 +62,10 @@
 				enable-active-high;
 				regulator-always-on;
 			};
+
+			wsp_preinit: wsp_preinit {
+				compatible = "wlf,rpi-wm5102-preinit";
+			};
 		};
 	};
 
