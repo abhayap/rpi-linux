@@ -1987,19 +1987,15 @@ static int arizona_enable_fll(struct arizona_fll *fll)
 
 	arizona_fll_dbg(fll, "Waiting for FLL lock...\n");
 	val = 0;
-	for (i = 0; i < 15; i++) {
-		if (i < 5)
-			usleep_range(200, 400);
-		else
-			msleep(20);
-
+	for (i = 0; i < 25; i++) {
 		regmap_read(arizona->regmap,
 			    ARIZONA_INTERRUPT_RAW_STATUS_5,
 			    &val);
 		if (val & (ARIZONA_FLL1_CLOCK_OK_STS << (fll->id - 1)))
 			break;
+		msleep(10);
 	}
-	if (i == 15)
+	if (i == 25)
 		arizona_fll_warn(fll, "Timed out waiting for lock\n");
 	else
 		arizona_fll_dbg(fll, "FLL locked (%d polls)\n", i);
@@ -2011,6 +2007,8 @@ static void arizona_disable_fll(struct arizona_fll *fll)
 {
 	struct arizona *arizona = fll->arizona;
 	bool change;
+	int i;
+	unsigned int val;
 
 	regmap_update_bits_async(arizona->regmap, fll->base + 1,
 				 ARIZONA_FLL1_FREERUN, ARIZONA_FLL1_FREERUN);
@@ -2020,6 +2018,21 @@ static void arizona_disable_fll(struct arizona_fll *fll)
 			   ARIZONA_FLL1_SYNC_ENA, 0);
 	regmap_update_bits_async(arizona->regmap, fll->base + 1,
 				 ARIZONA_FLL1_FREERUN, 0);
+
+	arizona_fll_dbg(fll, "Waiting for FLL disable...\n");
+	val = 0;
+	for (i = 0; i < 25; i++) {
+		regmap_read(arizona->regmap,
+			    ARIZONA_INTERRUPT_RAW_STATUS_5,
+			    &val);
+		if (!(val & (ARIZONA_FLL1_CLOCK_OK_STS << (fll->id - 1))))
+			break;
+		msleep(10);
+	}
+	if (i == 25)
+		arizona_fll_warn(fll, "Timed out waiting for disable\n");
+	else
+		arizona_fll_dbg(fll, "FLL disabled (%d polls)\n", i);
 
 	if (change)
 		pm_runtime_put_autosuspend(arizona->dev);
