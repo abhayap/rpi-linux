@@ -425,7 +425,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 	else
 		max_size = MAX_NORMAL_TRANSFER;
 	period_len = min(period_len, max_size);
-	d->frames = (buf_len - 1) / (period_len + 1);
+	d->frames = DIV_ROUND_UP(buf_len, period_len);
 
 	d->cb_list = kcalloc(d->frames, sizeof(*d->cb_list), GFP_KERNEL);
 	if (!d->cb_list) {
