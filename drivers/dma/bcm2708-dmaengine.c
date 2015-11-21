@@ -421,7 +421,12 @@ struct bcm2835_desc {
 #define BCM2835_DMA_CHAN(n)	((n) << 8) /* Base address */
 #define BCM2835_DMA_CHANIO(base, n) ((base) + BCM2835_DMA_CHAN(n))
 
-#define MAX_LITE_TRANSFER 32768
+/*
+ * Max length on a Lite channel is 65535 bytes.
+ * DMA handles byte-enables on SDRAM reads and writes even on 128-bit accesses,
+ * but byte-enables don't exist on peripheral addresses, so align to 32-bit.
+ */
+#define MAX_LITE_TRANSFER (SZ_64K - 4)
 #define MAX_NORMAL_TRANSFER 1073741824
 
 static inline struct bcm2835_dmadev *to_bcm2835_dma_dev(struct dma_device *d)
