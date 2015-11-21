@@ -76,14 +76,10 @@ config SND_BCM2708_SOC_RASPIDAC3
 	help
 	  Say Y or M if you want to add support for RaspiDAC Rev.3x.
 
-config SND_BCM2708_SOC_RPI_CODEC_WSP_PREINIT
-	tristate
-
 config SND_BCM2708_SOC_RPI_CODEC_WSP
 	tristate "Support for Cirrus sound pi"
 	depends on SND_BCM2708_SOC_I2S
 	select SND_SOC_WM5102
 	select SND_SOC_WM8804
-	select SND_BCM2708_SOC_RPI_CODEC_WSP_PREINIT
 	help
 	  Say Y or M if you want to add support for Cirrus sound pi

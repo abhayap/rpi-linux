@@ -393,7 +393,7 @@ static struct snd_soc_dai_link snd_rpi_wsp_dai[] = {
 		.stream_name = "SPDIF Tx/Rx",
 		.cpu_dai_name = "wm5102-aif2",
 		.codec_dai_name = "wm8804-spdif",
-		.codec_name = "wm8804.1-003a",
+		.codec_name = "wm8804.1-003b",
 		.dai_fmt = SND_SOC_DAIFMT_I2S
 			| SND_SOC_DAIFMT_NB_NF
 			| SND_SOC_DAIFMT_CBM_CFM,
@@ -523,7 +523,6 @@ static struct platform_driver snd_rpi_wsp_driver = {
 
 module_platform_driver(snd_rpi_wsp_driver);
 
-MODULE_SOFTDEP("pre: snd_soc_wm8804_i2c");
 MODULE_AUTHOR("Nikesh Oswal");
 MODULE_AUTHOR("Liu Xin");
 MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to Cirrus sound pi");
