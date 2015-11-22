@@ -52,10 +52,6 @@
 	clock-frequency = <100000>;
 };
 
-&i2c2 {
-	status = "okay";
-};
-
 &sdhci {
 	status = "okay";
 	bus-width = <4>;
