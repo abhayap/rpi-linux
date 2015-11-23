@@ -426,6 +426,12 @@ static int snd_rpi_wsp_late_probe(struct snd_soc_card *card)
 		return ret;
 	}
 
+	ret = snd_rpi_wsp_config_5102_clks(card->rtd[0].codec, RPI_WLF_SR);
+	if (ret != 0) {
+		dev_err(card->rtd[0].codec->dev, "snd_rpi_wsp_config_5102_clks failed: %d\n", ret);
+		return ret;
+	}
+
 	ret = snd_soc_dai_set_sysclk(card->rtd[0].codec_dai,  ARIZONA_CLK_SYSCLK, 0, 0);
 	if (ret != 0) {
 		dev_err(card->rtd[0].codec->dev, "Failed to set codec dai clk domain: %d\n", ret);
