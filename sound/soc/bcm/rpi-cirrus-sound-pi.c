@@ -25,6 +25,9 @@
 #define WM5102_MAX_SYSCLK_1 49152000 /*max sysclk for 4K family*/
 #define WM5102_MAX_SYSCLK_2 45158400 /*max sysclk for 11.025K family*/
 
+#define DAI_WM5102 0
+#define DAI_WM8804 1
+
 static struct snd_soc_card snd_rpi_wsp;
 
 struct wm5102_machine_priv {
@@ -45,7 +48,7 @@ int spdif_rx_enable_event(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_card *card = &snd_rpi_wsp;
 	struct wm5102_machine_priv *priv = snd_soc_card_get_drvdata(card);
-	struct snd_soc_codec *wm5102_codec = card->rtd[0].codec;
+	struct snd_soc_codec *wm5102_codec = card->rtd[DAI_WM5102].codec;
 	int ret = 0;
 	int clk_freq;
 	int sr = priv->wm8804_sr;
@@ -127,24 +130,29 @@ static int rpi_set_bias_level(struct snd_soc_card *card,
 				struct snd_soc_dapm_context *dapm,
 				enum snd_soc_bias_level level)
 {
-	struct snd_soc_codec *wm5102_codec = card->rtd[0].codec;
+	struct snd_soc_dai *wm5102_codec_dai = card->rtd[DAI_WM5102].codec_dai;
+	struct snd_soc_codec *wm5102_codec = card->rtd[DAI_WM5102].codec;
 	struct wm5102_machine_priv *priv = snd_soc_card_get_drvdata(card);
 
 	int ret;
 	int sr = priv->wm5102_sr;
 	int clk_freq = (sr % 4000 == 0) ? WM5102_MAX_SYSCLK_1 : WM5102_MAX_SYSCLK_2;
 
+	if (dapm->dev != wm5102_codec_dai->dev)
+		return 0;
+
 	switch (level) {
-	case SND_SOC_BIAS_OFF:
-		break;
-	case SND_SOC_BIAS_ON:
+	case SND_SOC_BIAS_PREPARE:
+		if (dapm->bias_level != SND_SOC_BIAS_STANDBY)
+			break;
+
 		if (!priv->sync_path_enable) {
 			ret = snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1,
 						    ARIZONA_CLK_SRC_MCLK1,
 						    WM8804_CLKOUT_HZ,
 						    clk_freq);
 			if (ret != 0) {
-				dev_err(wm5102_codec->dev, "Failed to enable FLL1 with Ref Clock Loop: %d\n", ret);
+				dev_err(wm5102_codec->dev, "Failed to enable FLL1: %d\n", ret);
 				return ret;
 			}
 		}
@@ -153,8 +161,6 @@ static int rpi_set_bias_level(struct snd_soc_card *card,
 		break;
 	}
 
-	dapm->bias_level = level;
-
 	return 0;
 }
 
@@ -162,14 +168,26 @@ static int rpi_set_bias_level_post(struct snd_soc_card *card,
 		struct snd_soc_dapm_context *dapm,
 		enum snd_soc_bias_level level)
 {
-	struct snd_soc_codec *wm5102_codec = card->rtd[0].codec;
+	struct snd_soc_dai *wm5102_codec_dai = card->rtd[DAI_WM5102].codec_dai;
+	struct snd_soc_codec *wm5102_codec = card->rtd[DAI_WM5102].codec;
+	int ret;
+
+	if (dapm->dev != wm5102_codec_dai->dev)
+		return 0;
 
 	switch (level) {
 	case SND_SOC_BIAS_STANDBY:
-		snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1,
+		ret = snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1,
 			ARIZONA_FLL_SRC_NONE, 0, 0);
-		snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1_REFCLK,
+		if (ret < 0) {
+			dev_warn(wm5102_codec->dev, "set_bias_level_post: Failed to stop FLL1: %d\n", ret);
+		}
+
+		ret = snd_soc_codec_set_pll(wm5102_codec, WM5102_FLL1_REFCLK,
 			ARIZONA_FLL_SRC_NONE, 0, 0);
+		if (ret < 0) {
+			dev_warn(wm5102_codec->dev, "set_bias_level_post: Failed to stop FLL1_REFCLK: %d\n", ret);
+		}
 		break;
 	default:
 		break;
@@ -257,8 +275,8 @@ static int snd_rpi_wsp_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_codec *wm5102_codec = rtd->codec;
 	struct snd_soc_dai *bcm_i2s_dai = rtd->cpu_dai;
-	struct snd_soc_codec *wm8804_codec = card->rtd[1].codec;
-	struct snd_soc_dai *wm8804_codec_dai = card->rtd[1].codec_dai;
+	struct snd_soc_codec *wm8804_codec = card->rtd[DAI_WM8804].codec;
+	struct snd_soc_dai *wm8804_codec_dai = card->rtd[DAI_WM8804].codec_dai;
 	struct wm5102_machine_priv *priv = snd_soc_card_get_drvdata(card);
 	int ret, capture_stream_opened,playback_stream_opened;
 	unsigned int bclkratio, tx_mask, rx_mask;
@@ -412,35 +430,35 @@ static int snd_rpi_wsp_late_probe(struct snd_soc_card *card)
 	priv->wm5102_sr = RPI_WLF_SR;
 	priv->sync_path_enable = 0;
 
-	ret = snd_soc_codec_set_sysclk(card->rtd[0].codec, ARIZONA_CLK_SYSCLK, ARIZONA_CLK_SRC_FLL1,
+	ret = snd_soc_codec_set_sysclk(card->rtd[DAI_WM5102].codec, ARIZONA_CLK_SYSCLK, ARIZONA_CLK_SRC_FLL1,
 					0, SND_SOC_CLOCK_IN);
 	if (ret != 0) {
-		dev_err(card->rtd[0].codec->dev, "Failed to set SYSCLK to Zero: %d\n", ret);
+		dev_err(card->rtd[DAI_WM5102].codec->dev, "Failed to set SYSCLK to Zero: %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_rpi_wsp_config_8804_clks(card->rtd[1].codec, card->rtd[1].codec_dai, RPI_WLF_SR);
+	ret = snd_rpi_wsp_config_8804_clks(card->rtd[DAI_WM8804].codec, card->rtd[DAI_WM8804].codec_dai, RPI_WLF_SR);
 
 	if (ret != 0) {
-		dev_err(card->rtd[1].codec->dev, "snd_rpi_wsp_config_8804_clks failed: %d\n", ret);
+		dev_err(card->rtd[DAI_WM8804].codec->dev, "snd_rpi_wsp_config_8804_clks failed: %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_rpi_wsp_config_5102_clks(card->rtd[0].codec, RPI_WLF_SR);
+	ret = snd_rpi_wsp_config_5102_clks(card->rtd[DAI_WM5102].codec, RPI_WLF_SR);
 	if (ret != 0) {
-		dev_err(card->rtd[0].codec->dev, "snd_rpi_wsp_config_5102_clks failed: %d\n", ret);
+		dev_err(card->rtd[DAI_WM5102].codec->dev, "snd_rpi_wsp_config_5102_clks failed: %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_soc_dai_set_sysclk(card->rtd[0].codec_dai,  ARIZONA_CLK_SYSCLK, 0, 0);
+	ret = snd_soc_dai_set_sysclk(card->rtd[DAI_WM5102].codec_dai,  ARIZONA_CLK_SYSCLK, 0, 0);
 	if (ret != 0) {
-		dev_err(card->rtd[0].codec->dev, "Failed to set codec dai clk domain: %d\n", ret);
+		dev_err(card->rtd[DAI_WM5102].codec->dev, "Failed to set codec dai clk domain: %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_soc_dai_set_sysclk(card->rtd[1].cpu_dai, ARIZONA_CLK_SYSCLK, 0, 0);
+	ret = snd_soc_dai_set_sysclk(card->rtd[DAI_WM8804].cpu_dai, ARIZONA_CLK_SYSCLK, 0, 0);
 	if (ret != 0) {
-		dev_err(card->rtd[0].codec->dev, "Failed to set codec dai clk domain: %d\n", ret);
+		dev_err(card->rtd[DAI_WM8804].codec->dev, "Failed to set codec dai clk domain: %d\n", ret);
 		return ret;
 	}
 
@@ -476,7 +494,7 @@ static int snd_rpi_wsp_probe(struct platform_device *pdev)
 
 	if (pdev->dev.of_node) {
 	    struct device_node *i2s_node;
-	    struct snd_soc_dai_link *dai = &snd_rpi_wsp_dai[0];
+	    struct snd_soc_dai_link *dai = &snd_rpi_wsp_dai[DAI_WM5102];
 	    i2s_node = of_parse_phandle(pdev->dev.of_node,
 					"i2s-controller", 0);
 
