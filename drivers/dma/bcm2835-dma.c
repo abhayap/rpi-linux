@@ -379,6 +379,15 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 	unsigned int frame, max_size;
 	int i;
 
+	if (!buf_len || !period_len)
+		return NULL;
+
+	if (buf_len % period_len) {
+		dev_err(chan->device->dev,
+			 "Buffer length should be a multiple of period\n");
+		return NULL;
+	}
+
 	/* Grab configuration */
 	if (!is_slave_direction(direction)) {
 		dev_err(chan->device->dev, "%s: bad direction?\n", __func__);
@@ -404,6 +413,18 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 		return NULL;
 	}
 
+	if (c->ch >= 8) /* LITE channel */
+		max_size = MAX_LITE_TRANSFER;
+	else
+		max_size = MAX_NORMAL_TRANSFER;
+
+	if (period_len > max_size) {
+		dev_err(chan->device->dev,
+			"Period length %d larger than maximum %d\n",
+			period_len, max_size);
+		return NULL;
+	}
+
 	/* Now allocate and setup the descriptor. */
 	d = kzalloc(sizeof(*d), GFP_NOWAIT);
 	if (!d)
@@ -411,12 +432,8 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 
 	d->c = c;
 	d->dir = direction;
-	if (c->ch >= 8) /* LITE channel */
-		max_size = MAX_LITE_TRANSFER;
-	else
-		max_size = MAX_NORMAL_TRANSFER;
-	period_len = min(period_len, max_size);
-	d->frames = DIV_ROUND_UP(buf_len, period_len);
+	d->frames = buf_len / period_len;
+	d->size = buf_len;
 
 	d->cb_list = kcalloc(d->frames, sizeof(*d->cb_list), GFP_KERNEL);
 	if (!d->cb_list) {
@@ -464,12 +481,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 				BCM2835_DMA_PER_MAP(c->dreq);
 
 		/* Length of a frame */
-		if (frame != d->frames - 1)
-			control_block->length = period_len;
-		else
-			control_block->length = buf_len - (d->frames - 1) *
-						period_len;
-		d->size += control_block->length;
+		control_block->length = period_len;
 
 		/*
 		 * Next block is the next frame.
