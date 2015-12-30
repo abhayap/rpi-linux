@@ -59,6 +59,7 @@ dtb-$(CONFIG_ARCH_AXXIA) += \
 dtb-$(CONFIG_ARCH_BCM2835) += \
 	bcm2835-rpi-b.dtb \
 	bcm2835-rpi-b-rev2.dtb \
+	bcm2835-rpi-b-rev2-cirrus.dtb \
 	bcm2835-rpi-b-plus.dtb \
 	bcm2835-rpi-a-plus.dtb
 dtb-$(CONFIG_ARCH_BCM_5301X) += \

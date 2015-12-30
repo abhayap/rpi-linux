@@ -1,0 +1,123 @@
+/dts-v1/;
+#include "bcm2835-rpi.dtsi"
+
+/ {
+	compatible = "raspberrypi,model-b-rev2", "brcm,bcm2835";
+	model = "Raspberry Pi Model B rev2";
+
+	leds {
+		act {
+			gpios = <&gpio 16 1>;
+		};
+	};
+
+	soc {
+		ldo1: ldo1 {
+			compatible = "regulator-fixed";
+			regulator-name = "DC_5V";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			enable-active-high;
+			regulator-always-on;
+		};
+
+		ldo0: ldo0 {
+			compatible = "regulator-fixed";
+			regulator-name = "DC_1V8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			enable-active-high;
+			regulator-always-on;
+		};
+	};
+
+	sound {
+		compatible = "wlf,rpi-wm5102";
+		i2s-controller = <&i2s>;
+	};
+
+	aliases {
+		ldo0 = &ldo0;
+		ldo1 = &ldo1;
+	};
+};
+
+&gpio {
+	pinctrl-0 = <&gpioout &alt0 &i2s_alt2 &alt3>;
+
+	/* I2S interface */
+	i2s_alt2: i2s_alt2 {
+		brcm,pins = <28 29 30 31>;
+		brcm,function = <BCM2835_FSEL_ALT2>;
+	};
+
+	wlf_pins: wlf_pins {
+		brcm,pins = <17 22 27 8>;
+		brcm,function = <1 1 0 1>;
+	};
+};
+
+&spi {
+	status = "okay";
+
+	spidev@0{
+		status = "disabled";
+	};
+
+	spidev@1{
+		status = "disabled";
+	};
+
+	wm5102@1{
+		compatible = "wlf,wm5102";
+		reg = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		spi-max-frequency = <500000>;
+
+		interrupt-parent = <&gpio>;
+		interrupts = <27 8>;
+
+		LDOVDD-supply = <&ldo0>;
+		AVDD-supply = <&ldo0>;
+		DBVDD1-supply = <&ldo0>;
+		DBVDD2-supply = <&ldo0>;
+		DBVDD3-supply = <&ldo0>;
+		CPVDD-supply = <&ldo0>;
+		SPKVDDL-supply = <&ldo1>;
+		SPKVDDR-supply = <&ldo1>;
+
+		wlf,reset = <&gpio 17 0>;
+		wlf,ldoena = <&gpio 22 0>;
+		wlf,gpio-defaults = <
+			0x000fffff
+			0x000fffff
+			0x000fffff
+			0x000fffff
+			0x000fffff
+		>;
+		wlf,micd-configs = <0 1 0>;
+		wlf,dmic-ref = <0 2 0 0>;
+		wlf,clk32k-src = <3>;
+		wlf,inmode = <0 2 1 0>;
+		status = "okay";
+	};
+};
+
+&i2c1 {
+	status = "okay";
+
+	wm8804@3b {
+		#sound-dai-cells = <0>;
+		compatible = "wlf,wm8804";
+		reg = <0x3b>;
+		status = "okay";
+		PVDD-supply = <&ldo0>;
+		DVDD-supply = <&ldo0>;
+		wlf,reset-gpio = <&gpio 8 0>;
+	};
+};
+
+&i2s {
+	status = "okay";
+};
