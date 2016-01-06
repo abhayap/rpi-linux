@@ -790,7 +790,7 @@ static const struct snd_pcm_hardware bcm2835_pcm_hardware = {
 	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
 				  SNDRV_PCM_FMTBIT_S32_LE,
 	.period_bytes_min	= 32,
-	.period_bytes_max	= SZ_64K - 4,
+	.period_bytes_max	= SZ_256K,
 	.periods_min		= 2,
 	.periods_max		= 255,
 	.buffer_bytes_max	= SZ_512K
