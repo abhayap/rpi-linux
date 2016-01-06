@@ -709,7 +709,7 @@ static struct dma_async_tx_descriptor *bcm2835_dma_prep_dma_cyclic(
 	d = bcm2835_dma_create_cb_chain(chan, direction, true,
 					info, extra,
 					frames, src, dst, buf_len,
-					period_len, GFP_KERNEL);
+					period_len, GFP_ATOMIC);
 	if (!d)
 		return NULL;
 
