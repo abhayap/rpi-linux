@@ -23,6 +23,11 @@
 #include <sound/soc.h>
 #include <sound/jack.h>
 
+static int fixed_bclk_16 = 0;
+static int fixed_bclk_32 = 0;
+module_param(fixed_bclk_16, int, 0644);
+module_param(fixed_bclk_32, int, 0644);
+
 static int snd_rpi_iqaudio_dac_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int ret;
@@ -46,6 +51,11 @@ static int snd_rpi_iqaudio_dac_hw_params(struct snd_pcm_substream *substream,
 	unsigned int sample_bits =
 		snd_pcm_format_physical_width(params_format(params));
 
+	if ((sample_bits == 16) && (fixed_bclk_16))
+		return snd_soc_dai_set_bclk_ratio(cpu_dai, fixed_bclk_16);
+	if ((sample_bits == 32) && (fixed_bclk_32))
+		return snd_soc_dai_set_bclk_ratio(cpu_dai, fixed_bclk_32);
+		
 	return snd_soc_dai_set_bclk_ratio(cpu_dai, sample_bits * 2);
 }
 
