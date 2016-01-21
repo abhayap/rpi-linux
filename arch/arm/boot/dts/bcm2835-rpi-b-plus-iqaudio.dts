@@ -58,6 +58,6 @@
 		reg = <BCM2835_CLOCK_PCM>;
 		parent-clock-names = "xosc", "plld_per";
 		brcm,clock-selector = <BCM2835_CHOOSE_CLOCK_DEFAULT>;
-		brcm,min-fract-div = <20>;
+		brcm,min-fract-prate = <100000000>;
 	};
 };
