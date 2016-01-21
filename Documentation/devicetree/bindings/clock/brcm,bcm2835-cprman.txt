@@ -27,16 +27,18 @@ selection behaviour.
 For each clock there may be a subnode that may contain the following:
 
 Required properties:
-- reg                 -  clock id
+- reg                  - clock id
 
 Optional properties:
-- parent-clock-names  - list of parrent-clock names
-  		        this list is validated againt the default list
-		        of parent clocks and is used in this order.
-- brcm,clock-selector - the clock selector to use
-- brcm,mash-max-order - the maximum order of the fractional divider
-- brcm,min-fract-div  - the minimum divider required when using
-  		      	the fractional divider
+- parent-clock-names   - list of parrent-clock names
+			 this list is validated againt the default list
+			 of parent clocks and is used in this order.
+- brcm,clock-selector  - the clock selector to use
+- brcm,mash-max-order  - the maximum order of the fractional divider
+- brcm,min-fract-div   - the minimum divider required when using
+			 the fractional divider
+- brcm,min-fract-prate - the minimum parent clock rate in Hz required
+			 when using the fractional divider
 
 Example:
 
