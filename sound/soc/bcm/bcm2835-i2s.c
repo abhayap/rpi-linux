@@ -276,6 +276,37 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	/* set target clock rate*/
 	clk_set_rate(dev->clk, sampling_rate * bclk_ratio);
 
+	/* debug clock settings */
+	{
+		struct clk *parent = clk_get_parent(dev->clk);
+		unsigned long parent_rate = clk_get_rate(parent);
+		unsigned long actual_rate = clk_get_rate(dev->clk);
+		unsigned long requested_rate = sampling_rate * bclk_ratio;
+		unsigned long rounded_rate = clk_round_rate(dev->clk, requested_rate);
+
+#define RATE_DIFF(x,y) (((x) > (y)) ? ((x) - (y)) : ((y) - (x)))
+		unsigned long rate_diff = RATE_DIFF(requested_rate, actual_rate);
+
+		pr_info("req %lu Hz actual %pCr Hz parent = %pC (%pCri Hz)\n",
+			requested_rate, dev->clk, parent, parent);
+		if (rate_diff > requested_rate / 1000)
+			pr_err("ERROR actual rate %lu is far off from %lu\n",
+				actual_rate, requested_rate);
+		if ((parent_rate == 19200000) && (19200000 % requested_rate))
+			pr_warn("WARNING: rate %lu runs off OSC in fractional mode\n",
+				requested_rate);
+		if (!(19200000 % requested_rate) && (parent_rate != 19200000))
+			pr_warn("WARNING: rate %lu runs not off OSC in integer mode\n",
+				requested_rate);
+		if (rounded_rate != actual_rate)
+			pr_info("round_rate(%lu) = %lu != actual rate %lu\n",
+				requested_rate, rounded_rate, actual_rate);
+		rate_diff = RATE_DIFF(requested_rate, rounded_rate);
+		if (rate_diff > requested_rate / 1000)
+			pr_err("ERROR rounded rate %lu is far off from %lu\n",
+				rounded_rate, requested_rate);
+	}
+
 	/* Setup the frame format */
 	format = BCM2835_I2S_CHEN;
 
