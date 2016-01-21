@@ -1853,7 +1853,6 @@ static int bcm2835_clock_determine_rate(struct clk_hw *hw,
 	const struct bcm2835_clock_data *data = clock->data;
 	struct bcm2835_rates rates[BIT(CM_SRC_BITS)];
 	size_t i, rate_cnt = 0;
-	divmash dm;
 
 	/* fill in rates */
 	for (i = 0; i < clk_hw_get_num_parents(hw); ++i) {
@@ -1862,9 +1861,9 @@ static int bcm2835_clock_determine_rate(struct clk_hw *hw,
 			continue;
 		rates[rate_cnt].prate = clk_hw_get_rate(
 			rates[rate_cnt].parent);
-		dm = bcm2835_clock_choose_div(
+		rates[rate_cnt].dmash = bcm2835_clock_choose_div(
 			hw, req->rate, rates[rate_cnt].prate, true);
-		rates[rate_cnt].div =  divmash_get_div(dm);
+		rates[rate_cnt].div = divmash_get_div(rates[rate_cnt].dmash);
 		rates[rate_cnt].rate = bcm2835_clock_rate_from_divisor(
 			clock, rates[rate_cnt].prate, rates[rate_cnt].div);
 		rate_cnt++;
