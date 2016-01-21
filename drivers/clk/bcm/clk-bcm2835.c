@@ -743,6 +743,8 @@ struct bcm2835_clock_data {
 	u32 frac_bits;
 	/* the minimum divider to allow when fractional */
 	u32 min_frac_div;
+	/* the minimum parent clock rate required when fractional */
+	u32 min_frac_prate;
 	/* the mash value to use - see CM_MASH */
 	enum bcm2835_clock_mash_type mash;
 	bool mash_forced;
@@ -1801,9 +1803,13 @@ static int bcm2835_clock_choose_closest_rate(struct clk_hw *hw,
 		/* do not look at anything above the requested rate */
 		if (rates[i].rate > req->rate)
 			continue;
-		/* if we have a divider that is not "safe", then ignore */
+		/*
+		 * if we have a divider that is not "safe", or a slow
+		 * parent clock then ignore.
+		 */
 		if (divmash_get_divf(rates[i].dmash) &&
-		    (rates[i].div < data->min_frac_div))
+		    ((rates[i].div < data->min_frac_div) ||
+		     (rates[i].prate < data->min_frac_prate)))
 			continue;
 		/* if we are the first */
 		if (!best) {
@@ -2228,6 +2234,9 @@ static const struct bcm2835_clock_data *bcm2835_register_clock_of(
 	err = of_property_read_u32(nc, "brcm,min-fract-div", &value);
 	if (!err)
 		data->min_frac_div = value << CM_DIV_FRAC_BITS;
+	/* support minimum parent clock rate for using fractional mode */
+	err = of_property_read_u32(nc, "brcm,min-fract-prate", &value);
+		data->min_frac_prate = value;
 	/* choose alternate clock selector */
 	err = of_property_read_u32(nc, "brcm,clock-selector", &value);
 	if (!err) {
