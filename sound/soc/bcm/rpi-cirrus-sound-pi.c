@@ -124,11 +124,15 @@ static int rpi_set_bias_level(struct snd_soc_card *card,
 				enum snd_soc_bias_level level)
 {
 	struct snd_soc_codec *wm5102_codec = card->rtd[DAI_WM5102].codec;
+	struct snd_soc_dai *wm5102_codec_dai = card->rtd[DAI_WM5102].codec_dai;
 	struct wm5102_machine_priv *priv = snd_soc_card_get_drvdata(card);
 
 	int ret;
 	int sr = priv->wm5102_sr;
 	int clk_freq = (sr % 4000 == 0) ? WM5102_MAX_SYSCLK_1 : WM5102_MAX_SYSCLK_2;
+
+	if (dapm->dev != wm5102_codec_dai->dev)
+		return 0;
 
 	switch (level) {
 	case SND_SOC_BIAS_OFF:
@@ -159,6 +163,10 @@ static int rpi_set_bias_level_post(struct snd_soc_card *card,
 		enum snd_soc_bias_level level)
 {
 	struct snd_soc_codec *wm5102_codec = card->rtd[DAI_WM5102].codec;
+	struct snd_soc_dai *wm5102_codec_dai = card->rtd[DAI_WM5102].codec_dai;
+
+	if (dapm->dev != wm5102_codec_dai->dev)
+		return 0;
 
 	switch (level) {
 	case SND_SOC_BIAS_STANDBY:
