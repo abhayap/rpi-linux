@@ -47,6 +47,21 @@
 #include <sound/soc.h>
 #include <sound/dmaengine_pcm.h>
 
+/* configurable clock selection and bclk_ratio settings */
+static int force_bclk_16 = 0;
+static int force_bclk_24 = 0;
+static int force_bclk_32 = 0;
+static int force_clock = 0;
+module_param(force_bclk_16, int, 0644);
+module_param(force_bclk_24, int, 0644);
+module_param(force_bclk_32, int, 0644);
+module_param(force_clock, int, 0644);
+
+MODULE_PARM_DESC(force_bclk_16, "Forced bclk_ratio for 16bit mode (0=use default)");
+MODULE_PARM_DESC(force_bclk_24, "Forced bclk_ratio for 24bit mode (0=use default)");
+MODULE_PARM_DESC(force_bclk_32, "Forced bclk_ratio for 32bit mode (0=use default)");
+MODULE_PARM_DESC(force_clock, "Forced clock 0: off, 1-4: OSC with mash 0-3, 5-8: PLLD with mash 0-3");
+
 /* Clock registers */
 #define BCM2835_CLK_PCMCTL_REG  0x00
 #define BCM2835_CLK_PCMDIV_REG  0x04
@@ -320,6 +335,7 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	bool frame_master =	(master == SND_SOC_DAIFMT_CBS_CFS
 					|| master == SND_SOC_DAIFMT_CBM_CFS);
 	uint32_t csreg;
+	bool forced_bclk = false;
 
 	/*
 	 * If a stream is already enabled,
@@ -340,23 +356,40 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		data_length = 16;
-		bclk_ratio = 50;
+		if (force_bclk_16) {
+			bclk_ratio = force_bclk_16;
+			forced_bclk = true;
+		} else
+			bclk_ratio = 50;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 		data_length = 24;
-		bclk_ratio = 50;
+		if (force_bclk_24) {
+			bclk_ratio = force_bclk_24;
+			forced_bclk = true;
+		} else
+			bclk_ratio = 50;
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		data_length = 32;
-		bclk_ratio = 100;
+		if (force_bclk_32) {
+			bclk_ratio = force_bclk_32;
+			forced_bclk = true;
+		} else
+			bclk_ratio = 100;
 		break;
 	default:
 		return -EINVAL;
 	}
 
 	/* If bclk_ratio already set, use that one. */
-	if (dev->bclk_ratio)
+	if (dev->bclk_ratio && !forced_bclk)
 		bclk_ratio = dev->bclk_ratio;
+
+	if (forced_bclk)
+		dev_info(dev->dev, "forced bclk_ratio to %u\n", bclk_ratio);
+	else
+		dev_info(dev->dev, "using default bclk_ratio of %u\n", bclk_ratio);
 
 	/*
 	 * Clock Settings
@@ -384,13 +417,13 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 	mash = BCM2835_CLK_MASH_0;
 
 	if (bcm2835_clk_freq[clk_src] % target_frequency == 0
-			&& bit_master && frame_master) {
+			&& bit_master && frame_master && !force_clock) {
 		divi = bcm2835_clk_freq[clk_src] / target_frequency;
 		divf = 0;
 	} else {
 		uint64_t dividend;
 
-		if (!dev->bclk_ratio) {
+		if (!dev->bclk_ratio && !forced_bclk) {
 			/*
 			 * Overwrite bclk_ratio, because the
 			 * above trick is not needed or can
@@ -401,8 +434,46 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 
 		target_frequency = sampling_rate * bclk_ratio;
 
-		clk_src = BCM2835_CLK_SRC_PLLD;
-		mash = BCM2835_CLK_MASH_1;
+		switch (force_clock) {
+		case 1:
+			clk_src = BCM2835_CLK_SRC_OSC;
+			mash = BCM2835_CLK_MASH_0;
+			break;
+		case 2:
+			clk_src = BCM2835_CLK_SRC_OSC;
+			mash = BCM2835_CLK_MASH_1;
+			break;
+		case 3:
+			clk_src = BCM2835_CLK_SRC_OSC;
+			mash = BCM2835_CLK_MASH_2;
+			break;
+		case 4:
+			clk_src = BCM2835_CLK_SRC_OSC;
+			mash = BCM2835_CLK_MASH_3;
+			break;
+		case 5:
+			clk_src = BCM2835_CLK_SRC_PLLD;
+			mash = BCM2835_CLK_MASH_0;
+			break;
+		case 6:
+			clk_src = BCM2835_CLK_SRC_PLLD;
+			mash = BCM2835_CLK_MASH_1;
+			break;
+		case 7:
+			clk_src = BCM2835_CLK_SRC_PLLD;
+			mash = BCM2835_CLK_MASH_2;
+			break;
+		case 8:
+			clk_src = BCM2835_CLK_SRC_PLLD;
+			mash = BCM2835_CLK_MASH_3;
+			break;
+		default:
+		case 0:
+			/* original default*/
+			clk_src = BCM2835_CLK_SRC_PLLD;
+			mash = BCM2835_CLK_MASH_1;
+			break;
+		}
 
 		dividend = bcm2835_clk_freq[clk_src];
 		dividend <<= BCM2835_CLK_SHIFT;
@@ -410,6 +481,13 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 		divi = dividend >> BCM2835_CLK_SHIFT;
 		divf = dividend & BCM2835_CLK_DIVF_MASK;
 	}
+
+	dev_info(dev->dev, "setup for %uHz %ubit bclk_ratio=%u needs %uHz clock\n",
+		sampling_rate, data_length, bclk_ratio, target_frequency);
+	dev_info(dev->dev, "using clock %s with mash %d divi=%d divf=%d\n",
+		clk_src == BCM2835_CLK_SRC_PLLD ? "PLLD" :
+			(clk_src == BCM2835_CLK_SRC_OSC ? "OSC" : "???"),
+		mash, divi, divf);
 
 	/* Clock should only be set up here if CPU is clock master */
 	switch (dev->fmt & SND_SOC_DAIFMT_MASTER_MASK) {
