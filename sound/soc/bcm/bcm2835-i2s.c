@@ -123,12 +123,15 @@ static const unsigned int bcm2835_clk_freq[BCM2835_CLK_SRC_HDMI+1] = {
 #define BCM2835_I2S_TXSYNC		BIT(13)
 #define BCM2835_I2S_DMAEN		BIT(9)
 #define BCM2835_I2S_RXTHR(v)		((v) << 7)
+#define BCM2835_I2S_RXTHR_MASK		GENMASK(8, 7)
 #define BCM2835_I2S_TXTHR(v)		((v) << 5)
+#define BCM2835_I2S_TXTHR_MASK		GENMASK(6, 5)
 #define BCM2835_I2S_RXCLR		BIT(4)
 #define BCM2835_I2S_TXCLR		BIT(3)
 #define BCM2835_I2S_TXON		BIT(2)
 #define BCM2835_I2S_RXON		BIT(1)
 #define BCM2835_I2S_EN			(1)
+#define BCM2835_I2S_CS_A_UNUSED 	(GENMASK(31, 26) | GENMASK(12,10))
 
 #define BCM2835_I2S_CLKDIS		BIT(28)
 #define BCM2835_I2S_PDMN		BIT(27)
@@ -153,6 +156,8 @@ static const unsigned int bcm2835_clk_freq[BCM2835_CLK_SRC_HDMI+1] = {
 #define BCM2835_I2S_RX_PANIC(v)	((v) << 16)
 #define BCM2835_I2S_TX(v)		((v) << 8)
 #define BCM2835_I2S_RX(v)		(v)
+#define BCM2835_I2S_DREQ_A_UNUSED \
+	(BIT(31) | BIT(23) | BIT(15) | BIT(7))
 
 #define BCM2835_I2S_INT_RXERR		BIT(3)
 #define BCM2835_I2S_INT_TXERR		BIT(2)
@@ -246,13 +251,15 @@ static void bcm2835_i2s_clear_fifos(struct bcm2835_i2s_dev *dev,
 	}
 
 	/* Stop I2S module */
-	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG, off, 0);
+	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
+			off | BCM2835_I2S_CS_A_UNUSED, 0);
 
 	/*
 	 * Clear the FIFOs
 	 * Requires at least 2 PCM clock cycles to take effect
 	 */
-	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG, clr, clr);
+	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
+			clr | BCM2835_I2S_CS_A_UNUSED, clr);
 
 	/* Wait for 2 PCM clock cycles */
 
@@ -264,7 +271,8 @@ static void bcm2835_i2s_clear_fifos(struct bcm2835_i2s_dev *dev,
 	syncval &= BCM2835_I2S_SYNC;
 
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
-			BCM2835_I2S_SYNC, ~syncval);
+			BCM2835_I2S_SYNC | BCM2835_I2S_CS_A_UNUSED,
+			~syncval);
 
 	/* Wait for the SYNC flag changing it's state */
 	while (--timeout) {
@@ -282,7 +290,10 @@ static void bcm2835_i2s_clear_fifos(struct bcm2835_i2s_dev *dev,
 
 	/* Restore I2S state */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
-			BCM2835_I2S_RXON | BCM2835_I2S_TXON, i2s_active_state);
+			BCM2835_I2S_RXON
+			| BCM2835_I2S_TXON
+			| BCM2835_I2S_CS_A_UNUSED,
+			i2s_active_state);
 }
 
 static int bcm2835_i2s_set_dai_fmt(struct snd_soc_dai *dai,
@@ -555,15 +566,19 @@ static int bcm2835_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	/* Setup the DMA parameters */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
+			BCM2835_I2S_RXTHR_MASK
+			| BCM2835_I2S_TXTHR_MASK
+			| BCM2835_I2S_DMAEN
+			| BCM2835_I2S_CS_A_UNUSED,
 			BCM2835_I2S_RXTHR(1)
 			| BCM2835_I2S_TXTHR(1)
-			| BCM2835_I2S_DMAEN, 0xffffffff);
+			| BCM2835_I2S_DMAEN);
 
-	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_DREQ_A_REG,
+	regmap_write(dev->i2s_regmap, BCM2835_I2S_DREQ_A_REG,
 			  BCM2835_I2S_TX_PANIC(0x10)
 			| BCM2835_I2S_RX_PANIC(0x30)
 			| BCM2835_I2S_TX(0x30)
-			| BCM2835_I2S_RX(0x20), 0xffffffff);
+			| BCM2835_I2S_RX(0x20));
 
 	/* Clear FIFOs */
 	bcm2835_i2s_clear_fifos(dev, true, true);
@@ -608,8 +623,8 @@ static void bcm2835_i2s_stop(struct bcm2835_i2s_dev *dev,
 	else
 		mask = BCM2835_I2S_TXON;
 
-	regmap_update_bits(dev->i2s_regmap,
-			BCM2835_I2S_CS_A_REG, mask, 0);
+	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
+			mask | BCM2835_I2S_CS_A_UNUSED, 0);
 
 	/* Stop also the clock when not SND_SOC_DAIFMT_CONT */
 	if (!dai->active && !(dev->fmt & SND_SOC_DAIFMT_CONT))
@@ -633,8 +648,8 @@ static int bcm2835_i2s_trigger(struct snd_pcm_substream *substream, int cmd,
 		else
 			mask = BCM2835_I2S_TXON;
 
-		regmap_update_bits(dev->i2s_regmap,
-				BCM2835_I2S_CS_A_REG, mask, mask);
+		regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
+				mask | BCM2835_I2S_CS_A_UNUSED, mask);
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -662,14 +677,16 @@ static int bcm2835_i2s_startup(struct snd_pcm_substream *substream,
 
 	/* Enable PCM block */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
-			BCM2835_I2S_EN, BCM2835_I2S_EN);
+			BCM2835_I2S_EN | BCM2835_I2S_CS_A_UNUSED,
+			BCM2835_I2S_EN);
 
 	/*
 	 * Disable STBY.
 	 * Requires at least 4 PCM clock cycles to take effect.
 	 */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
-			BCM2835_I2S_STBY, BCM2835_I2S_STBY);
+			BCM2835_I2S_STBY | BCM2835_I2S_CS_A_UNUSED,
+			BCM2835_I2S_STBY);
 
 	return 0;
 }
@@ -687,7 +704,7 @@ static void bcm2835_i2s_shutdown(struct snd_pcm_substream *substream,
 
 	/* Disable the module */
 	regmap_update_bits(dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
-			BCM2835_I2S_EN, 0);
+			BCM2835_I2S_EN | BCM2835_I2S_CS_A_UNUSED, 0);
 
 	/*
 	 * Stopping clock is necessary, because stop does
