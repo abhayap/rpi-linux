@@ -36,6 +36,7 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -163,6 +164,7 @@ static const unsigned int bcm2835_clk_freq[BCM2835_CLK_SRC_HDMI+1] = {
 #define BCM2835_I2S_INT_TXERR		BIT(2)
 #define BCM2835_I2S_INT_RXR		BIT(1)
 #define BCM2835_I2S_INT_TXW		BIT(0)
+#define BCM2835_I2S_INT_MASK		GENMASK(3, 0)
 
 /* General device struct */
 struct bcm2835_i2s_dev {
@@ -173,7 +175,63 @@ struct bcm2835_i2s_dev {
 
 	struct regmap *i2s_regmap;
 	struct regmap *clk_regmap;
+	int irq;
 };
+
+/* IRQ handler: just acknowledge and log IRQs */
+static irqreturn_t bcm2835_i2s_interrupt(int irq, void* dev_id)
+{
+	struct bcm2835_i2s_dev *i2s_dev = dev_id;
+	uint32_t intstat, csastat;
+
+	regmap_read(i2s_dev->i2s_regmap, BCM2835_I2S_INTSTC_A_REG,
+		&intstat);
+
+	regmap_read(i2s_dev->i2s_regmap, BCM2835_I2S_CS_A_REG,
+		&csastat);
+
+	intstat &= BCM2835_I2S_INT_MASK;
+
+	/* disable triggered IRQs, making error reporting a one-shot */
+	regmap_write(i2s_dev->i2s_regmap, BCM2835_I2S_INTEN_A_REG,
+		(~intstat) & BCM2835_I2S_INT_MASK);
+
+	/* acknowledge interrupt(s) */
+	regmap_write(i2s_dev->i2s_regmap, BCM2835_I2S_INTSTC_A_REG,
+		intstat);
+
+	dev_dbg(i2s_dev->dev, "interrupt status: %d\n", intstat);
+
+	if (intstat & BCM2835_I2S_INT_RXERR)
+		dev_warn(i2s_dev->dev, "RX Error IRQ\n");
+	if (intstat & BCM2835_I2S_INT_TXERR)
+		dev_warn(i2s_dev->dev, "TX Error IRQ\n");
+	if (intstat & BCM2835_I2S_INT_RXR)
+		dev_warn(i2s_dev->dev, "RX Read IRQ\n");
+	if (intstat & BCM2835_I2S_INT_TXW)
+		dev_warn(i2s_dev->dev, "TX Write IRQ\n");
+
+#define CSA_BIT_SET(bit) \
+	(csastat & (bit) ? 1 : 0)
+
+	dev_info(i2s_dev->dev, "RX status: RXF:%d RXD:%d RXR:%d RXERR:%d RXSYNC:%d\n",
+		CSA_BIT_SET(BCM2835_I2S_RXF),
+		CSA_BIT_SET(BCM2835_I2S_RXD),
+		CSA_BIT_SET(BCM2835_I2S_RXR),
+		CSA_BIT_SET(BCM2835_I2S_CS_RXERR),
+		CSA_BIT_SET(BCM2835_I2S_RXSYNC));
+
+	dev_info(i2s_dev->dev, "TX status: TXE:%d TXD:%d TXW:%d TXERR:%d TXSYNC:%d\n",
+		CSA_BIT_SET(BCM2835_I2S_TXE),
+		CSA_BIT_SET(BCM2835_I2S_TXD),
+		CSA_BIT_SET(BCM2835_I2S_TXW),
+		CSA_BIT_SET(BCM2835_I2S_CS_TXERR),
+		CSA_BIT_SET(BCM2835_I2S_TXSYNC));
+#undef CSA_BIT_SET
+
+	return IRQ_HANDLED;
+
+}
 
 static void bcm2835_i2s_start_clock(struct bcm2835_i2s_dev *dev)
 {
@@ -904,6 +962,21 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 	dev->dev = &pdev->dev;
 	dev_set_drvdata(&pdev->dev, dev);
 
+	dev->irq = platform_get_irq(pdev, 0);
+	if (dev->irq >= 0) {
+		ret = devm_request_irq(&pdev->dev, dev->irq, bcm2835_i2s_interrupt, 0,
+			dev_name(&pdev->dev), dev);
+		if (ret) {
+			dev_err(&pdev->dev, "could not request IRQ: %d\n", ret);
+			return ret;
+		} else {
+			dev_info(&pdev->dev, "registered IRQ %d dev=%p\n",
+				dev->irq, dev);
+		}
+	} else
+		dev_info(&pdev->dev, "no IRQ\n");
+
+
 	ret = devm_snd_soc_register_component(&pdev->dev,
 			&bcm2835_i2s_component, &bcm2835_i2s_dai, 1);
 	if (ret) {
@@ -919,6 +992,24 @@ static int bcm2835_i2s_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	if (dev->irq >= 0) {
+		regmap_write(dev->i2s_regmap, BCM2835_I2S_INTEN_A_REG,
+			BCM2835_I2S_INT_RXERR
+			| BCM2835_I2S_INT_TXERR);
+
+		dev_info(&pdev->dev, "enabled IRQ (%d) error reporting\n",
+			dev->irq);
+	}
+
+	return 0;
+}
+
+static int bcm2835_i2s_remove(struct platform_device *pdev)
+{
+	struct bcm2835_i2s_dev *dev = dev_get_drvdata(&pdev->dev);
+	/* disable interrupts */
+	if (dev->irq >= 0)
+		regmap_write(dev->i2s_regmap, BCM2835_I2S_INTEN_A_REG, 0);
 	return 0;
 }
 
@@ -931,6 +1022,7 @@ MODULE_DEVICE_TABLE(of, bcm2835_i2s_of_match);
 
 static struct platform_driver bcm2835_i2s_driver = {
 	.probe		= bcm2835_i2s_probe,
+	.remove		= bcm2835_i2s_remove,
 	.driver		= {
 		.name	= "bcm2835-i2s",
 		.of_match_table = bcm2835_i2s_of_match,
