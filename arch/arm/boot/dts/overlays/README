@@ -464,12 +464,6 @@ Params: sda1_pin                GPIO pin for SDA1 (2 or 44 - default 2)
                                 default 4)
 
 
-Name:   i2s-mmap
-Info:   Enables mmap support in the bcm2708-i2s driver
-Load:   dtoverlay=i2s-mmap
-Params: <None>
-
-
 Name:   iqaudio-dac
 Info:   Configures the IQaudio DAC audio card
 Load:   dtoverlay=iqaudio-dac

@@ -37,7 +37,6 @@ dtbo-$(RPI_DT_OVERLAYS) += i2c-mux-pca9548a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c-pwm-pca9685a.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c0-bcm2708.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += i2c1-bcm2708.dtbo
-dtbo-$(RPI_DT_OVERLAYS) += i2s-mmap.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += iqaudio-dac.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += iqaudio-dacplus.dtbo
 dtbo-$(RPI_DT_OVERLAYS) += lirc-rpi.dtbo
